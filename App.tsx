@@ -1,16 +1,20 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { Code2, Play, Layout, FileJson, GripVertical, PanelRightClose, PanelRightOpen, ChevronRight, ChevronLeft } from 'lucide-react';
+import { Code2, Play, Layout, FileJson, GripVertical, PanelRightClose, PanelRightOpen, ChevronRight, ChevronLeft, Braces, FunctionSquare } from 'lucide-react';
 import { TemplateEditor } from './components/TemplateEditor';
 import { VariableTree } from './components/VariableTree';
 import { TestDataEditor } from './components/TestDataEditor';
 import { PreviewPane } from './components/PreviewPane';
-import { INITIAL_TEMPLATE, INITIAL_TEST_DATA } from './constants';
+import { FunctionList } from './components/FunctionList';
+import { FunctionEditorModal } from './components/FunctionEditorModal';
+import { INITIAL_TEMPLATE, INITIAL_TEST_DATA, INITIAL_FUNCTIONS } from './constants';
 import { compileTemplate, formatJson } from './services/engine';
+import { UserFunction } from './types';
 
 function App() {
   const [mode, setMode] = useState<'edit' | 'preview'>('edit');
   const [template, setTemplate] = useState(INITIAL_TEMPLATE);
   const [testDataStr, setTestDataStr] = useState(JSON.stringify(INITIAL_TEST_DATA, null, 2));
+  const [customFunctions, setCustomFunctions] = useState<UserFunction[]>(INITIAL_FUNCTIONS);
   
   // Derived State
   const [parsedTestData, setParsedTestData] = useState<any>(INITIAL_TEST_DATA);
@@ -23,6 +27,13 @@ function App() {
   const [isResizing, setIsResizing] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const sidebarRef = useRef<HTMLDivElement>(null);
+
+  // Sidebar Tabs for Edit Mode
+  const [sidebarTab, setSidebarTab] = useState<'variables' | 'functions'>('variables');
+
+  // Function Modal State
+  const [isFunctionModalOpen, setIsFunctionModalOpen] = useState(false);
+  const [editingFunction, setEditingFunction] = useState<UserFunction | null>(null);
 
   // Live parsing of Test Data
   useEffect(() => {
@@ -39,14 +50,14 @@ function App() {
   useEffect(() => {
     if (!isTestDataValid) return;
     try {
-      const result = compileTemplate(template, parsedTestData);
+      const result = compileTemplate(template, parsedTestData, customFunctions);
       // Attempt to pretty print the result if it is valid JSON, otherwise show raw
       setCompiledResult(formatJson(result));
       setCompileError(null);
     } catch (e: any) {
       setCompileError(e.message);
     }
-  }, [template, parsedTestData, isTestDataValid]);
+  }, [template, parsedTestData, isTestDataValid, customFunctions]);
 
   // Resizing Logic (Mouse & Touch)
   const startResizing = useCallback((e: React.MouseEvent | React.TouchEvent) => {
@@ -91,6 +102,35 @@ function App() {
 
   const toggleSidebar = () => {
     setIsSidebarOpen(!isSidebarOpen);
+  };
+
+  // Function Management Handlers
+  const handleAddFunction = () => {
+    setEditingFunction(null);
+    setIsFunctionModalOpen(true);
+  };
+
+  const handleEditFunction = (fn: UserFunction) => {
+    setEditingFunction(fn);
+    setIsFunctionModalOpen(true);
+  };
+
+  const handleDeleteFunction = (id: string) => {
+    if (confirm('Are you sure you want to delete this function?')) {
+        setCustomFunctions(prev => prev.filter(f => f.id !== id));
+    }
+  };
+
+  const handleSaveFunction = (fn: UserFunction) => {
+    setCustomFunctions(prev => {
+        const index = prev.findIndex(f => f.id === fn.id);
+        if (index >= 0) {
+            const next = [...prev];
+            next[index] = fn;
+            return next;
+        }
+        return [...prev, fn];
+    });
   };
 
   return (
@@ -169,13 +209,13 @@ function App() {
             onMouseDown={startResizing}
             onTouchStart={startResizing}
           >
-             {/* Visual grip indicator (hidden on mobile mostly, visible on hover desktop) */}
+             {/* Visual grip indicator */}
              <div className={`h-8 w-0.5 rounded transition-colors hidden sm:block ${isResizing ? 'bg-white/80' : 'bg-transparent group-hover:bg-white/50'}`}></div>
              
-             {/* Collapse Button floating on the divider */}
+             {/* Collapse Button */}
              <button
                 onClick={(e) => {
-                  e.stopPropagation(); // Prevent drag start
+                  e.stopPropagation();
                   toggleSidebar();
                 }}
                 className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-6 h-12 bg-white border border-slate-200 shadow-sm rounded-full flex items-center justify-center text-slate-400 hover:text-teal-600 hover:border-teal-300 z-30 opacity-0 group-hover:opacity-100 transition-opacity hidden sm:flex"
@@ -195,24 +235,41 @@ function App() {
           >
             {mode === 'edit' ? (
               <div className="flex flex-col h-full bg-white">
-                <div className="p-4 border-b border-slate-200 bg-slate-50/50 flex justify-between items-center h-12">
-                  <div className="flex items-center gap-2 text-sm font-bold text-slate-800">
-                    <FileJson size={16} className="text-teal-600" />
-                    <span className="truncate">Context Variables</span>
-                  </div>
+                {/* Tabs */}
+                <div className="flex items-center border-b border-slate-200 bg-slate-50/50">
+                   <button 
+                     onClick={() => setSidebarTab('variables')}
+                     className={`flex-1 py-3 text-xs font-bold uppercase tracking-wide flex items-center justify-center gap-2 border-b-2 transition-colors ${sidebarTab === 'variables' ? 'border-teal-500 text-teal-700 bg-white' : 'border-transparent text-slate-500 hover:text-slate-700 hover:bg-slate-100'}`}
+                   >
+                     <FileJson size={14} />
+                     Variables
+                   </button>
+                   <button 
+                     onClick={() => setSidebarTab('functions')}
+                     className={`flex-1 py-3 text-xs font-bold uppercase tracking-wide flex items-center justify-center gap-2 border-b-2 transition-colors ${sidebarTab === 'functions' ? 'border-purple-500 text-purple-700 bg-white' : 'border-transparent text-slate-500 hover:text-slate-700 hover:bg-slate-100'}`}
+                   >
+                     <Braces size={14} />
+                     Functions
+                   </button>
                 </div>
-                <div className="px-4 py-2 bg-slate-50/50 border-b border-slate-200">
-                   <p className="text-xs text-slate-500">
-                    Drag items into the editor to insert.
-                  </p>
-                </div>
+
+                {/* Tab Content */}
                 <div className="flex-1 overflow-hidden">
-                  {isTestDataValid ? (
-                    <VariableTree data={parsedTestData} />
+                  {sidebarTab === 'variables' ? (
+                    isTestDataValid ? (
+                      <VariableTree data={parsedTestData} />
+                    ) : (
+                      <div className="p-4 text-center text-red-500 text-sm">
+                        Fix JSON syntax in Test Data to see variables.
+                      </div>
+                    )
                   ) : (
-                    <div className="p-4 text-center text-red-500 text-sm">
-                      Fix JSON syntax in Test Data to see variables.
-                    </div>
+                    <FunctionList 
+                      functions={customFunctions}
+                      onAdd={handleAddFunction}
+                      onEdit={handleEditFunction}
+                      onDelete={handleDeleteFunction}
+                    />
                   )}
                 </div>
               </div>
@@ -232,8 +289,7 @@ function App() {
       <footer className="h-8 bg-white border-t border-slate-200 flex items-center px-4 text-[11px] text-slate-500 justify-between shrink-0 select-none">
         <div className="flex gap-4">
           <span className="font-mono hidden sm:inline">Schema Mode: Loose</span>
-          <span className="font-mono hidden sm:inline">Engine: Handlebars 4.7.7</span>
-          <span className="font-mono sm:hidden">HB 4.7.7</span>
+          <span className="font-mono hidden sm:inline">Helpers: {customFunctions.length} Active</span>
         </div>
         <div className="flex gap-4">
            {isTestDataValid ? (
@@ -249,6 +305,14 @@ function App() {
            )}
         </div>
       </footer>
+
+      {/* Function Editor Modal */}
+      <FunctionEditorModal 
+        isOpen={isFunctionModalOpen}
+        functionData={editingFunction}
+        onClose={() => setIsFunctionModalOpen(false)}
+        onSave={handleSaveFunction}
+      />
     </div>
   );
 }

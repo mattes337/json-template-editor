@@ -27,20 +27,66 @@ export const INITIAL_TEST_DATA = {
 };
 
 export const INITIAL_TEMPLATE = `{
-  "eventId": "{{#js}} 'evt_' + Math.random().toString(36).substr(2, 9) {{/js}}",
-  "userId": "{{ user.id }}",
-  "fullName": "{{ user.name }}",
-  "firstName": "{{#js}} context.user.name.split(' ')[0] {{/js}}",
-  "isActive": {{ user.isActive }},
-  "orderSummary": {
-    "orderId": "{{ order.id }}",
-    "totalValue": {{ order.total }},
-    "isHighValue": {{#js}} context.order.total > 100 {{/js}}
+  "meta": {
+    "requestId": "{{#js}} 'req_' + Math.random().toString(36).substr(2, 9) {{/js}}",
+    "timestamp": "{{ meta.timestamp }}",
+    "apiVersion": "v2",
+    "isProduction": {{#js}} context.meta.environment === 'production' {{/js}}
   },
-  "tags": [
-    {{#each user.roles}}
-    "role:{{this}}"{{#unless @last}},{{/unless}}
-    {{/each}}
-  ],
-  "generatedAt": "{{ meta.timestamp }}"
+  "userInfo": {
+    "id": "{{ user.id }}",
+    "displayName": "{{ user.name }}",
+    "email": "{{ user.email }}",
+    "status": "{{#if user.isActive}}Active{{else}}Inactive{{/if}}",
+    "roles": [
+      {{#each user.roles}}
+      "{{ uppercase this }}"{{#unless @last}},{{/unless}}
+      {{/each}}
+    ],
+    "preferences": {
+      {{#each user.preferences}}
+      "{{ @key }}": "{{ this }}"{{#unless @last}},{{/unless}}
+      {{/each}}
+    }
+  },
+  "order": {
+    "id": "{{ order.id }}",
+    "currency": "{{ order.currency }}",
+    "shipping": {
+      "method": "{{#if order.shippingAddress}}Delivery{{else}}Pickup{{/if}}",
+      "address": "{{#if order.shippingAddress}}{{ order.shippingAddress }}{{else}}N/A{{/if}}"
+    },
+    "items": [
+      {{#each order.items}}
+      {
+        "sku": "{{ this.sku }}",
+        "qty": {{ this.qty }},
+        "unitPrice": {{ this.price }},
+        "lineTotal": {{#js}} (scope.qty * scope.price).toFixed(2) {{/js}},
+        "highValue": {{#js}} (scope.qty * scope.price) > 60 {{/js}}
+      }{{#unless @last}},{{/unless}}
+      {{/each}}
+    ],
+    "totals": {
+      "subtotal": {{ order.total }},
+      "tax": {{#js}} (context.order.total * 0.1).toFixed(2) {{/js}},
+      "grandTotal": {{#js}} (context.order.total * 1.1).toFixed(2) {{/js}},
+      "formatted": "{{ formatCurrency order.total order.currency }}"
+    }
+  }
 }`;
+
+export const INITIAL_FUNCTIONS = [
+  {
+    id: 'fn_1',
+    name: 'formatCurrency',
+    args: ['amount', 'currency'],
+    body: "return new Intl.NumberFormat('en-US', { style: 'currency', currency: currency || 'USD' }).format(amount);"
+  },
+  {
+    id: 'fn_2',
+    name: 'uppercase',
+    args: ['str'],
+    body: "return str ? String(str).toUpperCase() : '';"
+  }
+];

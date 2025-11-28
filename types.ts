@@ -18,3 +18,10 @@ export type DragItem = {
   path: string;
   type: string;
 };
+
+export interface UserFunction {
+  id: string;
+  name: string;
+  args: string[];
+  body: string;
+}
