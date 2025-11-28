@@ -1,0 +1,5 @@
+{
+  "name": "Dynamic JSON Template Editor",
+  "description": "A visual IDE for creating dynamic JSON payloads with Handlebars syntax, featuring drag-and-drop variables, real-time preview, and AI assistance.",
+  "requestFramePermissions": []
+}
